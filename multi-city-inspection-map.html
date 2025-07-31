@@ -440,9 +440,9 @@
                     <label>Risk Level</label>
                     <select id="riskFilter">
                         <option value="all">All Risk Levels</option>
-                        <option value="high">High Risk (15+ points)</option>
-                        <option value="medium">Medium Risk (5-14 points)</option>
-                        <option value="low">Low Risk (0-4 points)</option>
+                        <option value="high" id="riskHighOption">High Risk</option>
+                        <option value="medium" id="riskMediumOption">Medium Risk</option>
+                        <option value="low" id="riskLowOption">Low Risk</option>
                     </select>
                 </div>
                 <div class="control-group">
@@ -492,15 +492,15 @@
                 <h3>Risk Classification</h3>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #d32f2f;"></div>
-                    <span class="risk-high">High Risk (15+ points or Risk 1)</span>
+                    <span class="risk-high" id="riskHighText">High Risk</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #f57c00;"></div>
-                    <span class="risk-medium">Medium Risk (5-14 points or Risk 2)</span>
+                    <span class="risk-medium" id="riskMediumText">Medium Risk</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #388e3c;"></div>
-                    <span class="risk-low">Low Risk (0-4 points or Risk 3)</span>
+                    <span class="risk-low" id="riskLowText">Low Risk</span>
                 </div>
             </div>
 
@@ -747,6 +747,44 @@
             document.getElementById('citySubtitle').style.letterSpacing = spacing + 'em';
         }
 
+        // Update risk legend text based on current city
+        function updateRiskLegend() {
+            const riskDefinitions = {
+                seattle: {
+                    high: 'High Risk (15+ violation points)',
+                    medium: 'Medium Risk (5-14 violation points)', 
+                    low: 'Low Risk (0-4 violation points)'
+                },
+                nyc: {
+                    high: 'High Risk (28+ violation points, Grade C+)',
+                    medium: 'Medium Risk (14-27 points, Grade B)',
+                    low: 'Low Risk (0-13 points, Grade A)'
+                },
+                chicago: {
+                    high: 'High Risk (Risk 1 establishments)',
+                    medium: 'Medium Risk (Risk 2 establishments)',
+                    low: 'Low Risk (Risk 3 establishments)'
+                },
+                sfo: {
+                    high: 'High Risk (10+ violations)',
+                    medium: 'Medium Risk (3-9 violations)',
+                    low: 'Low Risk (0-2 violations)'
+                }
+            };
+
+            const definitions = riskDefinitions[currentCity] || riskDefinitions.seattle;
+            
+            // Update legend
+            document.getElementById('riskHighText').textContent = definitions.high;
+            document.getElementById('riskMediumText').textContent = definitions.medium;
+            document.getElementById('riskLowText').textContent = definitions.low;
+            
+            // Update filter dropdown options
+            document.getElementById('riskHighOption').textContent = definitions.high;
+            document.getElementById('riskMediumOption').textContent = definitions.medium;
+            document.getElementById('riskLowOption').textContent = definitions.low;
+        }
+
         // Switch city function
         function switchCity(city) {
             if (city === currentCity) return;
@@ -769,6 +807,7 @@
             // Update UI immediately
             document.getElementById('cityTitle').textContent = cityConfigs[city].name;
             updateSubtitleSpacing();
+            updateRiskLegend();
             
             // Update city selector buttons
             document.getElementById('seattle-btn').classList.toggle('active', city === 'seattle');
@@ -853,12 +892,46 @@
             }
         }
 
-        // Risk classification function
-        function classifyRisk(violationPoints) {
+        // City-specific risk classification function
+        function classifyRisk(violationPoints, city, riskText = '', inspectionResult = '') {
             const points = parseInt(violationPoints) || 0;
-            if (points >= 15) return 'high';
-            if (points >= 5) return 'medium';
-            return 'low';
+            
+            switch(city) {
+                case 'seattle':
+                    // Seattle uses violation points: 15+ high, 5-14 medium, 0-4 low
+                    if (points >= 15) return 'high';
+                    if (points >= 5) return 'medium';
+                    return 'low';
+                    
+                case 'nyc': 
+                    // NYC uses violation points similar to Seattle
+                    if (points >= 28) return 'high';      // Grade C or worse
+                    if (points >= 14) return 'medium';    // Grade B
+                    return 'low';                         // Grade A
+                    
+                case 'chicago':
+                    // Chicago has explicit Risk categories: Risk 1 (High), Risk 2 (Medium), Risk 3 (Low)
+                    if (riskText.includes('Risk 1') || riskText.toLowerCase().includes('high')) return 'high';
+                    if (riskText.includes('Risk 2') || riskText.toLowerCase().includes('medium')) return 'medium';
+                    if (riskText.includes('Risk 3') || riskText.toLowerCase().includes('low')) return 'low';
+                    
+                    // Fallback based on inspection result
+                    if (inspectionResult === 'Fail') return 'high';
+                    if (inspectionResult === 'Pass w/ Conditions') return 'medium';
+                    return 'low';
+                    
+                case 'sfo':
+                    // San Francisco uses violation count: 10+ high, 3-9 medium, 0-2 low
+                    if (points >= 10) return 'high';
+                    if (points >= 3) return 'medium';
+                    return 'low';
+                    
+                default:
+                    // Generic fallback
+                    if (points >= 15) return 'high';
+                    if (points >= 5) return 'medium';
+                    return 'low';
+            }
         }
 
         // Grade color mapping
@@ -1110,7 +1183,7 @@
                         violationPoints: parseInt(d[mapping.violationPoints]) || 0,
                         grade: d[mapping.grade] || '',
                         businessId: d[mapping.businessId] || '',
-                        riskLevel: classifyRisk(d[mapping.violationPoints]),
+                        riskLevel: classifyRisk(d[mapping.violationPoints], city, d[mapping.risk] || '', d[mapping.inspectionResult] || ''),
                         source: 'api' // Track data source
                     };
                 }).filter(d => {
@@ -1244,7 +1317,8 @@
                     } else {
                         // Seattle and NYC use standard violation points
                         violationPoints = parseInt(getValueWithFallback(d, config.dataMapping.violationPoints, ['POINTS', 'points', 'score', 'Score'])) || 0;
-                        riskLevel = classifyRisk(violationPoints);
+                        const inspectionResult = getValueWithFallback(d, config.dataMapping.inspectionResult, ['RESULT', 'result']) || '';
+                        riskLevel = classifyRisk(violationPoints, city, '', inspectionResult);
                     }
 
                     const processed = {
@@ -1834,6 +1908,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             initializeMap();
             updateSubtitleSpacing(); // Set initial spacing
+            updateRiskLegend(); // Set initial risk legend
             
             loadData().then(() => {
                 lastRefreshTime = new Date();
