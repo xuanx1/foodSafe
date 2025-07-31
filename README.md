@@ -1,6 +1,8 @@
 # Food Establishment Inspection Data [Preview](https://xuanx1.github.io/foodSafe/multi-city-inspection-map.html)
+![Screenshot 2025-07-31 014925](https://github.com/user-attachments/assets/037db449-b729-4150-bd25-4e7222752966)
 
 An interactive web application that visualizes food establishment inspection data across four major US cities: Seattle, New York City, Chicago, and San Francisco.
+![Screenshot 2025-07-31 015452](https://github.com/user-attachments/assets/92d5f2ad-5e19-443a-a078-ce7d253a90a5)
 
 ## Features
 
