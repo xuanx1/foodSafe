@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>United States Food Establishment Inspection, Mapped</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        .side-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            opacity: 0.9;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+            transition: right 0.3s ease-in-out;
+            z-index: 1000;
+            overflow-y: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .side-panel.open {
+            right: 0;
+        }
+
+        .panel-header {
+            background: #007cba;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1001;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel-content {
+            padding: 20px;
+        }
+
+        .toggle-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.7;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 999;
+            transition: background-color 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .toggle-btn:hover {
+            background-color: #005a87;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-group label {
+            display: block;
+            font-weight: bold;
+            color: #333;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .legend {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .legend h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .stats h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stat-label {
+            font-weight: bold;
+        }
+
+        .risk-high { color: #d32f2f; }
+        .risk-medium { color: #f57c00; }
+        .risk-low { color: #388e3c; }
+
+        .status-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        #refreshBtn {
+            width: 100%;
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        #refreshBtn:hover:not(:disabled) {
+            background-color: #005a87;
+        }
+
+        #refreshBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading, .error {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 6px;
+            z-index: 999;
+            font-weight: bold;
+        }
+
+        .loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        /* Progress bar - marker loading */
+        .progress-container {
+            position: fixed;
+            top: 20px;
+            left: 170px;
+            transform: translateX(-50%);
+            background: white;
+            opacity: 0.75;
+            backdrop-filter: blur(5px);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 999;
+            min-width: 300px;
+            display: none;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #007cba, #005a87);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .progress-stats {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        .leaflet-interactive {
+            transition: opacity 0.3s ease-in-out, fill-opacity 0.3s ease-in-out !important;
+        }
+
+        .city-title {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            z-index: 999;
+            font-size: 64px;
+            font-family: 'Gotham Bold', 'Gotham', 'Helvetica Neue', Arial, sans-serif;
+            font-weight: bold;
+            opacity: 0.8;
+            color: #424242;
+        }
+
+        .city-subtitle {
+            position: fixed;
+            bottom: 100px;
+            left: 25px;
+            padding: 0px 15px;
+            z-index: 999;
+            font-size: 12px;
+            font-family: 'Gotham', 'Helvetica Neue', Arial, sans-serif;
+            font-weight: bold;
+            opacity: 0.5;
+            color: #424242;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: transparent !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border-radius: 8px !important;
+            overflow: hidden !important;
+        }
+
+        .leaflet-popup-tip {
+            background: #007cba !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        }
+
+        .leaflet-popup-close-button {
+            color: white !important;
+            font-weight: normal !important;
+            font-size: 18px !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- City name title -->
+    <div class="city-title">SEATTLE</div>
+    
+    <!-- City subtitle -->
+    <div class="city-subtitle">FOOD ESTABLISHMENT INSPECTION</div>
+    
+    <button class="toggle-btn" id="toggleBtn" onclick="togglePanel()">
+        📊 Search Settings
+    </button>
+
+    <div class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <div class="panel-title">Food Establishment Inspection Data</div>
+            <button class="close-btn" onclick="togglePanel()">×</button>
+        </div>
+        
+        <div class="panel-content">
+            <div class="controls">
+                <div class="control-group">
+                    <label>Inspection Type</label>
+                    <select id="inspectionTypeFilter">
+                        <option value="all">All Types</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Grade</label>
+                    <select id="gradeFilter">
+                        <option value="all">All Grades</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Risk Level</label>
+                    <select id="riskFilter">
+                        <option value="all">All Risk Levels</option>
+                        <option value="high">High Risk (15+ points)</option>
+                        <option value="medium">Medium Risk (5-14 points)</option>
+                        <option value="low">Low Risk (0-4 points)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="control-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="control-group">
+                    <button id="refreshBtn" onclick="refreshData()">
+                        🔄 Refresh Data
+                    </button>
+                </div>
+            </div>
+
+            <div class="status-info" id="statusInfo" style="display: none;">
+                <div id="lastUpdate"></div>
+            </div>
+            
+            <div class="legend">
+                <h3>Grade Legend</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #2e7d32;"></div>
+                    <span>Excellent</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #689f38;"></div>
+                    <span>Good</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fbc02d;"></div>
+                    <span>Satisfactory</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f57c00;"></div>
+                    <span>Needs Improvement</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #d32f2f;"></div>
+                    <span>Poor</span>
+                </div>
+            </div>
+
+            <div class="legend">
+                <h3>Risk Classification</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #d32f2f;"></div>
+                    <span class="risk-high">High Risk (15+ violation points)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f57c00;"></div>
+                    <span class="risk-medium">Medium Risk (5-14 points)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #388e3c;"></div>
+                    <span class="risk-low">Low Risk (0-4 points)</span>
+                </div>
+            </div>
+
+            <div class="stats" id="stats">
+                <h3>Map Statistics</h3>
+                <div id="statsContent">
+                    <p style="color: #666; font-style: italic;">Filter the map to view inspection statistics</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading" id="loading" style="display: none;">Loading data...</div>
+    <div class="error" id="error" style="display: none;"></div>
+
+    <!-- Progress bar for marker plotting -->
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-text" id="progressText">Loading restaurants...</div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-stats" id="progressStats">0 / 0 markers loaded</div>
+    </div>
+
+    <script>
+        let map;
+        let inspectionData = [];
+        let individualMarkers = [];
+        let lastRefreshTime = null;
+        let autoRefreshInterval = null;
+        let isLoadingIndividualMarkers = false;
+        let progressContainer = null;
+        let progressBar = null;
+        let progressText = null;
+        let progressStats = null;
+        let markerClusterGroup = null; // For clustering large datasets
+        let spatialIndex = null; // For spatial indexing
+        let currentZoomLevel = 11;
+        let maxMarkersPerLoad = 2000; // Limit markers loaded at once
+        let currentFilters = {
+            inspectionType: 'all',
+            grade: 'all',
+            risk: 'all',
+            startDate: null,
+            endDate: null
+        };
+
+        // Toggle side panel
+        function togglePanel() {
+            const panel = document.getElementById('sidePanel');
+            const toggleBtn = document.getElementById('toggleBtn');
+            
+            panel.classList.toggle('open');
+            
+            if (panel.classList.contains('open')) {
+               // toggleBtn.textContent = '📊 Hide Panel';
+            } else {
+                toggleBtn.textContent = '📊 Search Settings';
+            }
+        }
+
+        // Refresh data manually - now uses incremental updates
+        async function refreshData() {
+            const refreshBtn = document.getElementById('refreshBtn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Checking for updates...';
+            
+            try {
+                await checkForUpdates();
+                lastRefreshTime = new Date();
+                updateLastRefreshDisplay();
+                
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `Error refreshing data: ${error.message}`;
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Data';
+            }
+        }
+
+        // Update last refresh time display
+        function updateLastRefreshDisplay() {
+            if (lastRefreshTime) {
+                const timeString = lastRefreshTime.toLocaleTimeString();
+                const dateString = lastRefreshTime.toLocaleDateString();
+                document.getElementById('lastUpdate').textContent = `Last Updated: ${dateString} at ${timeString}`;
+                document.getElementById('statusInfo').style.display = 'block';
+            }
+        }
+
+        // Enable auto-refresh (every 5 minutes for incremental updates)
+        function enableAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Auto-refresh every 5 minutes (300,000 milliseconds) since we're only fetching new records
+            autoRefreshInterval = setInterval(async () => {
+                console.log('Auto-checking for new inspection records...');
+                await refreshData();
+            }, 300000);
+        }
+
+        // Risk classification function
+        function classifyRisk(violationPoints) {
+            const points = parseInt(violationPoints) || 0;
+            if (points >= 15) return 'high';
+            if (points >= 5) return 'medium';
+            return 'low';
+        }
+
+        // Grade color mapping
+        function getGradeColor(grade) {
+            const gradeColors = {
+                '1': '#2e7d32',  // Green
+                '2': '#689f38',  // Light Green
+                '3': '#fbc02d',  // Yellow
+                '4': '#f57c00',  // Orange
+                '5': '#d32f2f'   // Red
+            };
+            return gradeColors[grade] || '#9e9e9e';
+        }
+
+        // Risk color mapping
+        function getRiskColor(riskLevel) {
+            const riskColors = {
+                'high': '#d32f2f',
+                'medium': '#f57c00',
+                'low': '#388e3c'
+            };
+            return riskColors[riskLevel] || '#9e9e9e';
+        }
+
+        // Risk border color mapping (darker versions)
+        function getRiskBorderColor(riskLevel) {
+            const riskBorderColors = {
+                'high': '#b71c1c',    // Darker red
+                'medium': '#e65100',  // Darker orange
+                'low': '#1b5e20'      // Darker green
+            };
+            return riskBorderColors[riskLevel] || '#616161';
+        }
+
+        // Initialize map
+        function initializeMap() {
+            map = L.map('map', {
+                minZoom: 14,  // Prevent zooming out below level 14
+                maxZoom: 18,  // Allow zooming in up to level 18
+                zoomControl: false  // Remove zoom controls
+            }).setView([47.6105, -122.3193], 14);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap contributors, © CARTO'
+            }).addTo(map);
+
+            // Initialize progress bar elements
+            progressContainer = document.getElementById('progressContainer');
+            progressBar = document.getElementById('progressBar');
+            progressText = document.getElementById('progressText');
+            progressStats = document.getElementById('progressStats');
+
+            // Track zoom level for adaptive loading
+            currentZoomLevel = map.getZoom();
+            map.on('zoomend', function() {
+                currentZoomLevel = map.getZoom();
+                // Adjust max markers based on zoom level
+                maxMarkersPerLoad = getMaxMarkersForZoom(currentZoomLevel);
+            });
+
+            // Add moveend event with debouncing for performance
+            let moveTimeout;
+            map.on('moveend', function() {
+                clearTimeout(moveTimeout);
+                moveTimeout = setTimeout(() => {
+                    loadIndividualMarkersInView();
+                }, 300); // 300ms debounce
+            });
+        }
+
+        // Load and parse data - hybrid approach: CSV for initial load, API for updates
+        async function loadData() {
+            try {
+ 
+                
+                // First, load from CSV for fast initial load
+                inspectionData = await loadFromCSV();
+                
+                console.log(`Loaded ${inspectionData.length} inspection records from CSV`);
+                
+
+                
+                // Populate filter options and create initial map
+                populateFilters();
+                
+                console.log('Initial data loaded successfully');
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `Error loading inspection data: ${error.message}`;
+            }
+        }
+
+        // Load initial data from CSV file
+        async function loadFromCSV() {
+            const data = await d3.csv('seattle-Food_Establishment_Inspection_Data.csv');
+            
+            console.log(`Raw CSV data loaded: ${data.length} records`);
+            
+            const processedData = data.map(d => ({
+                name: d.Name,
+                inspectionDate: new Date(d['Inspection Date']),
+                address: d.Address,
+                zipCode: d['Zip Code'],
+                latitude: parseFloat(d.Latitude),
+                longitude: parseFloat(d.Longitude),
+                inspectionType: d['Inspection Type'],
+                inspectionScore: parseInt(d['Inspection Score']) || 0,
+                inspectionResult: d['Inspection Result'],
+                violationType: d['Violation Type'],
+                violationPoints: parseInt(d['Violation Points']) || 0,
+                grade: d.Grade,
+                businessId: d['Business_ID'] || '',
+                riskLevel: classifyRisk(d['Violation Points'])
+            })).filter(d => d.latitude && d.longitude && d.zipCode);
+
+            console.log(`Processed data: ${processedData.length} valid records`);
+            
+            // Create spatial index for fast queries
+            console.log('Creating spatial index...');
+            spatialIndex = createSpatialIndex(processedData);
+            console.log(`Spatial index created with ${spatialIndex.size} grid cells`);
+            
+            return processedData;
+        }
+
+        // Check for new updates from API
+        async function checkForUpdates() {
+            try {
+                document.getElementById('loading').textContent = 'Checking for new updates...';
+                document.getElementById('loading').style.display = 'block';
+                
+                // Get the most recent date from CSV data
+                const mostRecentDate = new Date(Math.max(...inspectionData.map(d => d.inspectionDate.getTime())));
+                const dateString = mostRecentDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                
+                // Fetch only records newer than the most recent CSV date
+                const newRecords = await fetchNewRecords(dateString);
+                
+                if (newRecords.length > 0) {
+                    console.log(`Found ${newRecords.length} new inspection records`);
+                    
+                    // Add new records to existing data
+                    inspectionData = inspectionData.concat(newRecords);
+                    
+                    // Update the map with new data
+                    updateMapWithNewData();
+                    
+                    document.getElementById('loading').textContent = `Added ${newRecords.length} new records`;
+                    setTimeout(() => {
+                        document.getElementById('loading').style.display = 'none';
+                    }, 2000);
+                } else {
+                    console.log('No new records found');
+                    document.getElementById('loading').style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error checking for updates:', error);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Fetch only new records from API since a specific date
+        async function fetchNewRecords(sinceDate) {
+            const baseUrl = 'https://data.kingcounty.gov/resource/f29f-zza5.json';
+            const limit = 1000; // API limit per request
+            let offset = 0;
+            let allNewData = [];
+            let hasMoreData = true;
+            let totalFetched = 0;
+
+            console.log(`Starting to fetch records newer than ${sinceDate}`);
+
+            while (hasMoreData) {
+                try {
+                    // Use $where clause to get only records newer than sinceDate
+                    // Use both $limit and $offset for pagination as recommended
+                    const url = `${baseUrl}?$where=inspection_date>'${sinceDate}'&$limit=${limit}&$offset=${offset}`;
+                    console.log(`Fetching batch ${Math.floor(offset/limit) + 1}: ${url}`);
+                    
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.length === 0) {
+                        hasMoreData = false;
+                        console.log(`No more data available. Total fetched: ${totalFetched} records`);
+                    } else {
+                        // Process new data with same format as CSV
+                        const processedData = data.map(d => ({
+                            name: d.name || '',
+                            inspectionDate: d.inspection_date ? new Date(d.inspection_date) : null,
+                            address: d.address || '',
+                            zipCode: d.zip_code || '',
+                            latitude: parseFloat(d.latitude),
+                            longitude: parseFloat(d.longitude),
+                            inspectionType: d.inspection_type || '',
+                            inspectionScore: parseInt(d.inspection_score) || 0,
+                            inspectionResult: d.inspection_result || '',
+                            violationType: d.violation_type || '',
+                            violationPoints: parseInt(d.violation_points) || 0,
+                            grade: d.grade || '',
+                            businessId: d.business_id || '',
+                            riskLevel: classifyRisk(d.violation_points)
+                        })).filter(d => d.latitude && d.longitude && d.zipCode);
+                        
+                        allNewData = allNewData.concat(processedData);
+                        totalFetched += data.length;
+                        offset += limit; // Increment offset by limit for next page
+                        
+                        console.log(`Fetched ${data.length} records in this batch (${processedData.length} valid). Total so far: ${totalFetched}`);
+                        
+                        // If we got less than the limit, we've reached the end
+                        if (data.length < limit) {
+                            hasMoreData = false;
+                            console.log(`Last batch contained ${data.length} records (less than limit of ${limit}). Pagination complete.`);
+                        }
+                        
+                        // Small delay to avoid overwhelming the API (rate limiting)
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                } catch (error) {
+                    console.error(`Error fetching batch at offset ${offset}:`, error);
+                    hasMoreData = false;
+                    throw error;
+                }
+            }
+
+            console.log(`Pagination complete. Total new records processed: ${allNewData.length}`);
+            return allNewData;
+        }
+
+        // Update map with new data without full reload
+        function updateMapWithNewData() {
+            // Clear existing markers
+            clearAllMarkers();
+            
+            // Load individual markers
+            loadIndividualMarkersInView();
+            
+            // Update filter options if new types/grades were added
+            populateFilters();
+        }
+
+        // Clear all markers from the map
+        function clearAllMarkers() {
+            // Clear individual markers
+            clearIndividualMarkers();
+        }
+
+        // Clear only individual markers
+        function clearIndividualMarkers() {
+            individualMarkers.forEach(marker => {
+                map.removeLayer(marker);
+            });
+            individualMarkers = [];
+        }
+
+        // Show progress bar
+        function showProgress(text = 'Loading restaurants...') {
+            progressContainer.style.display = 'block';
+            progressText.textContent = text;
+            progressBar.style.width = '0%';
+            progressStats.textContent = '0 / 0 markers loaded';
+        }
+
+        // Update progress bar
+        function updateProgress(current, total, text = null) {
+            if (text) progressText.textContent = text;
+            const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+            progressBar.style.width = percentage + '%';
+            progressStats.textContent = `${current} / ${total} markers loaded`;
+        }
+
+        // Hide progress bar
+        function hideProgress() {
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 500); // Small delay to show completion
+        }
+
+        // Get maximum markers to load based on zoom level
+        function getMaxMarkersForZoom(zoom) {
+            if (zoom >= 16) return 5000;      // Very close - show more detail
+            if (zoom >= 14) return 6000;      // Close - moderate detail
+            if (zoom >= 12) return 15000;      // Medium - limited detail
+            if (zoom >= 10) return 15000;       // Far - sparse detail
+            return 15000;                       // Very far - minimal detail
+        }
+
+        // Spatial indexing for faster bounds queries
+        function createSpatialIndex(data) {
+            // Simple grid-based spatial index
+            const gridSize = 0.01; // ~1km grid cells
+            const index = new Map();
+            
+            data.forEach((inspection, idx) => {
+                const gridX = Math.floor(inspection.latitude / gridSize);
+                const gridY = Math.floor(inspection.longitude / gridSize);
+                const key = `${gridX},${gridY}`;
+                
+                if (!index.has(key)) {
+                    index.set(key, []);
+                }
+                index.get(key).push(inspection);
+            });
+            
+            return index;
+        }
+
+        // Fast bounds query using spatial index
+        function queryByBounds(bounds, maxResults = 1000) {
+            if (!spatialIndex) return [];
+            
+            const results = [];
+            const gridSize = 0.01;
+            
+            const minX = Math.floor(bounds.getSouth() / gridSize);
+            const maxX = Math.ceil(bounds.getNorth() / gridSize);
+            const minY = Math.floor(bounds.getWest() / gridSize);
+            const maxY = Math.ceil(bounds.getEast() / gridSize);
+            
+            for (let x = minX; x <= maxX && results.length < maxResults; x++) {
+                for (let y = minY; y <= maxY && results.length < maxResults; y++) {
+                    const key = `${x},${y}`;
+                    const gridData = spatialIndex.get(key);
+                    
+                    if (gridData) {
+                        for (const inspection of gridData) {
+                            if (results.length >= maxResults) break;
+                            if (bounds.contains([inspection.latitude, inspection.longitude])) {
+                                results.push(inspection);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return results;
+        }
+
+        // Priority-based marker selection (show most important first)
+        function prioritizeMarkers(markers, zoom) {
+            return markers.sort((a, b) => {
+                // Priority: High risk > Recent inspections > High violation points
+                if (a.riskLevel !== b.riskLevel) {
+                    const riskPriority = { 'high': 3, 'medium': 2, 'low': 1 };
+                    return riskPriority[b.riskLevel] - riskPriority[a.riskLevel];
+                }
+                
+                // Secondary: More recent inspections
+                if (a.inspectionDate !== b.inspectionDate) {
+                    return b.inspectionDate - a.inspectionDate;
+                }
+                
+                // Tertiary: Higher violation points
+                return b.violationPoints - a.violationPoints;
+            });
+        }
+
+        // Load individual markers for current map view (optimized for large datasets)
+        async function loadIndividualMarkersInView() {
+            if (isLoadingIndividualMarkers) return; // Prevent concurrent loading
+            
+            isLoadingIndividualMarkers = true;
+            
+            try {
+                const startTime = performance.now();
+                
+                // Get current map bounds
+                const bounds = map.getBounds();
+                
+                // Use spatial index for fast querying if available
+                let filteredData;
+                if (spatialIndex) {
+                    // Get ALL data in bounds (no limit) - show everything in view
+                    const boundsData = queryByBounds(bounds, Number.MAX_SAFE_INTEGER);
+                    filteredData = getFilteredData(boundsData);
+                } else {
+                    // Fallback to regular filtering
+                    filteredData = getFilteredData().filter(inspection => {
+                        return bounds.contains([inspection.latitude, inspection.longitude]);
+                    });
+                }
+
+                // Prioritize markers but don't limit them - show ALL in view
+                filteredData = prioritizeMarkers(filteredData, currentZoomLevel);
+                console.log(`Loading ALL ${filteredData.length} restaurants in current view`);
+
+                // Show progress bar for large datasets
+                const showProgressBar = filteredData.length > 100;
+                
+                if (showProgressBar) {
+                    showProgress(`Loading ${Math.min(filteredData.length, maxMarkersPerLoad)} restaurants...`);
+                }
+                
+                // Remove existing individual markers that are outside current view
+                const removalStartTime = performance.now();
+                individualMarkers = individualMarkers.filter(marker => {
+                    const markerLatLng = marker.getLatLng();
+                    if (!bounds.contains(markerLatLng)) {
+                        map.removeLayer(marker);
+                        return false;
+                    }
+                    return true;
+                });
+                console.log(`Marker removal took: ${performance.now() - removalStartTime}ms`);
+                
+                // Create markers for new restaurants in view
+                const existingCoords = new Set(individualMarkers.map(m => `${m.getLatLng().lat},${m.getLatLng().lng}`));
+                
+                const newMarkers = [];
+                let processedCount = 0;
+                const batchSize = 50; // Process in smaller batches
+                
+                for (let i = 0; i < filteredData.length; i += batchSize) {
+                    const batch = filteredData.slice(i, i + batchSize);
+                    
+                    for (const inspection of batch) {
+                        const coordKey = `${inspection.latitude},${inspection.longitude}`;
+                        if (!existingCoords.has(coordKey)) {
+                            const marker = createSingleIndividualMarker(inspection);
+                            newMarkers.push(marker);
+                            processedCount++;
+                        }
+                    }
+                    
+                    // Update progress and yield control
+                    if (showProgressBar) {
+                        updateProgress(i + batch.length, filteredData.length);
+                        await new Promise(resolve => setTimeout(resolve, 1)); // Micro-delay
+                    }
+                }
+                
+                // Add new markers to tracking array
+                individualMarkers.push(...newMarkers);
+                
+                // Final progress update
+                if (showProgressBar) {
+                    updateProgress(filteredData.length, filteredData.length, 
+                        `${newMarkers.length} restaurants loaded!`);
+                    hideProgress();
+                }
+                
+                // Update statistics
+                updateMapStats();
+                
+                const totalTime = performance.now() - startTime;
+                console.log(`Total loading time: ${totalTime}ms for ${newMarkers.length} markers`);
+                
+                // Log performance warning if slow
+                if (totalTime > 2000) {
+                    console.warn(`Slow marker loading detected: ${totalTime}ms. Consider reducing maxMarkersPerLoad.`);
+                }
+                
+            } finally {
+                isLoadingIndividualMarkers = false;
+            }
+        }
+
+        // Create a single individual marker with district-style circle styling
+        function createSingleIndividualMarker(inspection) {
+            const lat = inspection.latitude;
+            const lng = inspection.longitude;
+            
+            // Use larger radius and styling similar to district circles
+            const marker = L.circleMarker([lat, lng], {
+                radius: 3,
+                fillColor: getRiskColor(inspection.riskLevel),
+                color: getRiskBorderColor(inspection.riskLevel),
+                weight: 0.3, 
+                opacity: 0.3,
+                fillOpacity: 0.1 
+            });
+
+            // popup restaurant info
+            marker.bindPopup(createIndividualPopupContent(inspection));
+            
+            marker.addTo(map);
+            
+            return marker;
+        }
+
+        // Populate filter dropdowns
+        function populateFilters() {
+            const inspectionTypes = [...new Set(inspectionData.map(d => d.inspectionType))].filter(Boolean);
+            const grades = [...new Set(inspectionData.map(d => d.grade))].filter(Boolean).sort();
+
+            const inspectionTypeSelect = document.getElementById('inspectionTypeFilter');
+            inspectionTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                inspectionTypeSelect.appendChild(option);
+            });
+
+            const gradeSelect = document.getElementById('gradeFilter');
+            grades.forEach(grade => {
+                const option = document.createElement('option');
+                option.value = grade;
+                option.textContent = `Grade ${grade}`;
+                gradeSelect.appendChild(option);
+            });
+
+            // Set up event listeners
+            setupFilterListeners();
+        }
+
+        // Create zip code layers on map
+        function createZipCodeLayers() {
+            // This function is no longer used - removed zip code functionality
+        }
+
+        // Create popup content for individual restaurant markers
+        function createIndividualPopupContent(inspection) {
+            const inspectionDate = inspection.inspectionDate.toLocaleDateString();
+            const riskColor = getRiskColor(inspection.riskLevel);
+            const gradeColor = inspection.grade ? getGradeColor(inspection.grade) : '#9e9e9e';
+            
+            return `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 300px; margin: 0; padding: 0; background: transparent;">
+                    <!-- Header with restaurant name -->
+                    <div style="background: linear-gradient(135deg, #007cba, #005a87); color: white; padding: 15px; margin: 0; border-radius: 8px 8px 0 0;">
+                        <h3 style="margin: 0; font-size: 16px; font-weight: bold; line-height: 1.3;">${inspection.name}</h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 12px;">📍 ${inspection.address}</p>
+                    </div>
+                    
+                    <!-- Risk and Grade badges -->
+                    <div style="display: flex; gap: 8px; margin: 0; padding: 15px; align-items: center; background: white;">
+                        <div style="background: ${riskColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase;">
+                            ${inspection.riskLevel} Risk
+                        </div>
+                        ${inspection.grade ? `
+                        <div style="background: ${gradeColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                            Grade ${inspection.grade}
+                        </div>` : ''}
+                    </div>
+                    
+                    <!-- Inspection details grid -->
+                    <div style="display: grid; gap: 8px; margin: 0; padding: 0 15px 15px 15px; background: white;">
+                        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                            <span style="color: #666; font-size: 12px; font-weight: 500;">📅 Inspection Date</span>
+                            <span style="font-size: 12px; font-weight: bold;">${inspectionDate}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                            <span style="color: #666; font-size: 12px; font-weight: 500;">🔍 Type</span>
+                            <span style="font-size: 12px; font-weight: bold;">${inspection.inspectionType}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                            <span style="color: #666; font-size: 12px; font-weight: 500;">⚠️ Violation Points</span>
+                            <span style="font-size: 12px; font-weight: bold; color: ${riskColor};">${inspection.violationPoints}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 6px 0;">
+                            <span style="color: #666; font-size: 12px; font-weight: 500;">📋 Result</span>
+                            <span style="font-size: 12px; font-weight: bold;">${inspection.inspectionResult}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer with additional info -->
+                    <div style="background: #f8f9fa; padding: 8px 15px; margin: 0; border-radius: 0 0 8px 8px; text-align: center;">
+                        <p style="margin: 0; font-size: 10px; color: #666;">Business ID: ${inspection.businessId || 'N/A'}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Get filtered data based on current filters (optimized version)
+        function getFilteredData(dataToFilter = null) {
+            const dataSource = dataToFilter || inspectionData;
+            
+            // Early return if no filters applied
+            if (currentFilters.inspectionType === 'all' && 
+                currentFilters.grade === 'all' && 
+                currentFilters.risk === 'all' && 
+                !currentFilters.startDate && 
+                !currentFilters.endDate) {
+                return dataSource;
+            }
+            
+            return dataSource.filter(inspection => {
+                if (currentFilters.inspectionType !== 'all' && inspection.inspectionType !== currentFilters.inspectionType) return false;
+                if (currentFilters.grade !== 'all' && inspection.grade !== currentFilters.grade) return false;
+                if (currentFilters.risk !== 'all' && inspection.riskLevel !== currentFilters.risk) return false;
+                if (currentFilters.startDate && inspection.inspectionDate < currentFilters.startDate) return false;
+                if (currentFilters.endDate && inspection.inspectionDate > currentFilters.endDate) return false;
+                return true;
+            });
+        }
+
+
+
+        // Show general map statistics
+        function updateMapStats() {
+            const statsContent = document.getElementById('statsContent');
+            const filteredData = getFilteredData();
+            
+            if (filteredData.length === 0) {
+                statsContent.innerHTML = '<p style="color: #666; font-style: italic;">No data matches current filters</p>';
+                return;
+            }
+
+            const riskCounts = {
+                high: filteredData.filter(d => d.riskLevel === 'high').length,
+                medium: filteredData.filter(d => d.riskLevel === 'medium').length,
+                low: filteredData.filter(d => d.riskLevel === 'low').length
+            };
+
+            const gradeDistribution = {};
+            filteredData.forEach(d => {
+                if (d.grade) {
+                    gradeDistribution[d.grade] = (gradeDistribution[d.grade] || 0) + 1;
+                }
+            });
+
+            const gradeDistributionHtml = Object.entries(gradeDistribution)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([grade, count]) => 
+                    `<div class="stat-item">
+                        <span class="stat-label">Grade ${grade}:</span>
+                        <span>${count} (${Math.round(count/filteredData.length*100)}%)</span>
+                    </div>`
+                ).join('');
+
+            statsContent.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-label">Total Inspections:</span>
+                    <span>${filteredData.length}</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Restaurants Visible:</span>
+                    <span>${individualMarkers.length}</span>
+                </div>
+                
+                <h5 style="margin: 20px 0 10px 0;">Risk Distribution:</h5>
+                <div class="stat-item">
+                    <span class="stat-label risk-high">High Risk:</span>
+                    <span>${riskCounts.high}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label risk-medium">Medium Risk:</span>
+                    <span>${riskCounts.medium}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label risk-low">Low Risk:</span>
+                    <span>${riskCounts.low}</span>
+                </div>
+                
+                ${gradeDistributionHtml ? `<h5 style="margin: 20px 0 10px 0;">Grade Distribution:</h5>${gradeDistributionHtml}` : ''}
+            `;
+        }
+
+        // Set up filter event listeners
+        function setupFilterListeners() {
+            document.getElementById('inspectionTypeFilter').addEventListener('change', applyFilters);
+            document.getElementById('gradeFilter').addEventListener('change', applyFilters);
+            document.getElementById('riskFilter').addEventListener('change', applyFilters);
+            document.getElementById('startDate').addEventListener('change', applyFilters);
+            document.getElementById('endDate').addEventListener('change', applyFilters);
+        }
+
+        // Apply filters to the map
+        function applyFilters() {
+            currentFilters = {
+                inspectionType: document.getElementById('inspectionTypeFilter').value,
+                grade: document.getElementById('gradeFilter').value,
+                risk: document.getElementById('riskFilter').value,
+                startDate: document.getElementById('startDate').value ? new Date(document.getElementById('startDate').value) : null,
+                endDate: document.getElementById('endDate').value ? new Date(document.getElementById('endDate').value) : null
+            };
+
+            // Show progress for filter application
+            showProgress('Applying filters...');
+            
+            // Clear and reload markers with new filters
+            clearAllMarkers();
+            
+            // Add small delay to show progress before loading
+            setTimeout(() => {
+                loadIndividualMarkersInView();
+            }, 100);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            loadData().then(() => {
+                lastRefreshTime = new Date();
+                updateLastRefreshDisplay();
+                
+                console.log('Enabling auto-refresh...');
+                enableAutoRefresh();
+                
+                loadIndividualMarkersInView();
+                
+                console.log('Application initialized successfully. Individual restaurant markers loaded.');
+            }).catch(error => {
+                console.error('Failed to initialize application:', error);
+            });
+        });
+    </script>
+</body>
+</html>
