@@ -86,13 +86,14 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #007cba;
+            background: #535353;
             color: white;
             border: none;
             padding: 12px 16px;
             border-radius: 20px;
             cursor: pointer;
             font-weight: bold;
+            font-family: 'Gotham Bold', 'Gotham', 'Helvetica Neue', Arial, sans-serif;
             opacity: 0.7;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 999;
@@ -101,7 +102,7 @@
         }
 
         .toggle-btn:hover {
-            background-color: #005a87;
+            background-color: #666666;
         }
 
         .controls {
@@ -250,7 +251,7 @@
             left: 170px;
             transform: translateX(-50%);
             background: white;
-            opacity: 0.75;
+            opacity: 0.65;
             backdrop-filter: blur(5px);
             padding: 15px 20px;
             border-radius: 8px;
@@ -412,7 +413,7 @@
     <div class="city-subtitle" id="citySubtitle">FOOD ESTABLISHMENT INSPECTION</div>
     
     <button class="toggle-btn" id="toggleBtn" onclick="togglePanel()">
-        📊 Search Settings
+     SETTINGS
     </button>
 
     <div class="side-panel" id="sidePanel">
@@ -512,10 +513,9 @@
         </div>
     </div>
 
-    <div class="loading" id="loading" style="display: none;">Loading data...</div>
     <div class="error" id="error" style="display: none;"></div>
 
-    <!-- Progress bar for marker plotting -->
+    <!-- Combined progress container for data loading and marker plotting -->
     <div class="progress-container" id="progressContainer">
         <div class="progress-text" id="progressText">Loading restaurants...</div>
         <div class="progress-bar-container">
@@ -761,7 +761,6 @@
             isLoadingIndividualMarkers = false;
             
             // Hide any progress indicators
-            document.getElementById('loading').style.display = 'none';
             hideProgress();
             
             const oldCity = currentCity;
@@ -819,7 +818,7 @@
             if (panel.classList.contains('open')) {
                // toggleBtn.textContent = '📊 Hide Panel';
             } else {
-                toggleBtn.textContent = '📊 Search Settings';
+                toggleBtn.textContent = 'SETTINGS';
             }
         }
 
@@ -972,8 +971,7 @@
                     return;
                 }
                 
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('loading').textContent = `Loading ${cityConfigs[currentCity].name} data...`;
+                showDataProgress(`Loading ${cityConfigs[currentCity].name} data...`);
                 
                 inspectionData = await loadFromCSV(currentCity, signal);
                 
@@ -988,7 +986,7 @@
                 // Populate filter options and create initial map
                 populateFilters();
                 
-                document.getElementById('loading').style.display = 'none';
+                hideProgress();
                 console.log('Data loaded successfully');
                 
                 // Load markers for the initial view immediately
@@ -1004,7 +1002,7 @@
                 }
                 
                 console.error('Error loading data:', error);
-                document.getElementById('loading').style.display = 'none';
+                hideProgress();
                 document.getElementById('error').style.display = 'block';
                 document.getElementById('error').textContent = `Error loading inspection data: ${error.message}`;
             } finally {
@@ -1174,6 +1172,7 @@
                 }
                 
                 console.log(`Raw CSV data loaded: ${csvData.length} records`);
+                updateProgress(1, 4, `Processing ${csvData.length} CSV records...`, 'data');
                 
                 // Get current year for filtering
                 const currentYear = new Date().getFullYear();
@@ -1289,6 +1288,7 @@
                 
                 // Step 2: Load supplemental API data
                 console.log(`Step 2: Loading supplemental API data`);
+                updateProgress(2, 4, `Loading supplemental API data...`, 'data');
                 let apiData = [];
                 try {
                     apiData = await loadSupplementalAPIData(city, signal);
@@ -1307,6 +1307,7 @@
                 
                 // Step 3: Merge and deduplicate data
                 console.log(`Step 3: Merging CSV (${processedCsvData.length}) and API (${apiData.length}) data`);
+                updateProgress(3, 4, `Merging ${processedCsvData.length + apiData.length} records...`, 'data');
                 
                 // Create a map for deduplication based on business ID and date
                 const dataMap = new Map();
@@ -1341,6 +1342,7 @@
                 
                 // Create spatial index for fast queries
                 console.log('Creating spatial index...');
+                updateProgress(4, 4, `Creating spatial index for ${mergedData.length} records...`, 'data');
                 spatialIndex = createSpatialIndex(mergedData);
                 
                 // Check if aborted after spatial index creation
@@ -1377,19 +1379,32 @@
         }
 
         // Show progress bar
-        function showProgress(text = 'Loading restaurants...') {
+        function showProgress(text = 'Loading restaurants...', type = 'markers') {
             progressContainer.style.display = 'block';
             progressText.textContent = text;
             progressBar.style.width = '0%';
-            progressStats.textContent = '0 / 0 markers loaded';
+            if (type === 'data') {
+                progressStats.textContent = 'Preparing data...';
+            } else {
+                progressStats.textContent = '0 / 0 markers loaded';
+            }
         }
 
         // Update progress bar
-        function updateProgress(current, total, text = null) {
+        function updateProgress(current, total, text = null, type = 'markers') {
             if (text) progressText.textContent = text;
             const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
             progressBar.style.width = percentage + '%';
-            progressStats.textContent = `${current} / ${total} markers loaded`;
+            if (type === 'data') {
+                progressStats.textContent = current > 0 && total > 0 ? `Processing ${current} of ${total} records` : 'Loading data...';
+            } else {
+                progressStats.textContent = `${current} / ${total} markers loaded`;
+            }
+        }
+
+        // Show data loading progress
+        function showDataProgress(text) {
+            showProgress(text, 'data');
         }
 
         // Hide progress bar
