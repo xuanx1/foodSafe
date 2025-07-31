@@ -360,10 +360,10 @@
         /* City selector */
         .city-selector {
             position: fixed;
-            bottom: 150px;
-            left: 20px;
+            bottom: 40px;
+            right: 20px;
             z-index: 999;
-            background: rgba(66, 66, 66, 0.1);
+            background: rgba(66, 66, 66, 0.12);
             border-radius: 25px;
             padding: 5px;
             display: flex;
@@ -401,6 +401,8 @@
     <div class="city-selector">
         <button class="city-option active" onclick="switchCity('seattle')" id="seattle-btn">SEATTLE</button>
         <button class="city-option" onclick="switchCity('nyc')" id="nyc-btn">NEW YORK</button>
+        <button class="city-option" onclick="switchCity('chicago')" id="chicago-btn">CHICAGO</button>
+        <button class="city-option" onclick="switchCity('sfo')" id="sfo-btn">SAN FRANCISCO</button>
     </div>
     
     <!-- City name title -->
@@ -462,14 +464,14 @@
             </div>
             
             <div class="legend">
-                <h3>Grade Legend</h3>
+                <h3>Grade/Result Legend</h3>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #2e7d32;"></div>
-                    <span>Excellent</span>
+                    <span>Excellent/Pass</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #689f38;"></div>
-                    <span>Good</span>
+                    <span>Good/Conditional</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #fbc02d;"></div>
@@ -481,7 +483,7 @@
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #d32f2f;"></div>
-                    <span>Poor</span>
+                    <span>Poor/Fail/Closure</span>
                 </div>
             </div>
 
@@ -489,15 +491,15 @@
                 <h3>Risk Classification</h3>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #d32f2f;"></div>
-                    <span class="risk-high">High Risk (15+ violation points)</span>
+                    <span class="risk-high">High Risk (15+ points or Risk 1)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #f57c00;"></div>
-                    <span class="risk-medium">Medium Risk (5-14 points)</span>
+                    <span class="risk-medium">Medium Risk (5-14 points or Risk 2)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #388e3c;"></div>
-                    <span class="risk-low">Low Risk (0-4 points)</span>
+                    <span class="risk-low">Low Risk (0-4 points or Risk 3)</span>
                 </div>
             </div>
 
@@ -625,6 +627,84 @@
                     grade: 'grade',
                     businessId: 'camis'
                 }
+            },
+            chicago: {
+                name: 'CHICAGO',
+                center: [41.8781, -87.6298],
+                zoom: 14,
+                csvFile: 'chicago-Food_Inspections_20250731.csv',
+                apiUrl: 'https://data.cityofchicago.org/api/v3/views/4ijn-s7e5/query.json',
+                maxApiLimit: 50000, // Chicago API limit
+                dataMapping: {
+                    name: 'DBA Name',
+                    inspectionDate: 'Inspection Date',
+                    address: 'Address',
+                    zipCode: '', // No zip code in Chicago data
+                    latitude: 'Latitude',
+                    longitude: 'Longitude',
+                    inspectionType: 'Inspection Type',
+                    inspectionScore: '', // No numeric score, using Results instead
+                    inspectionResult: 'Results',
+                    violationType: 'Violations',
+                    violationPoints: '', // Need to calculate from violations
+                    grade: 'Results', // Using Results as grade equivalent
+                    businessId: 'License #',
+                    risk: 'Risk' // Chicago has risk classification
+                },
+                apiMapping: {
+                    name: 'dba_name',
+                    inspectionDate: 'inspection_date',
+                    address: 'address',
+                    zipCode: '',
+                    latitude: 'latitude',
+                    longitude: 'longitude',
+                    inspectionType: 'inspection_type',
+                    inspectionScore: '',
+                    inspectionResult: 'results',
+                    violationType: 'violations',
+                    violationPoints: '',
+                    grade: 'results',
+                    businessId: 'license_',
+                    risk: 'risk'
+                }
+            },
+            sfo: {
+                name: 'SAN FRANCISCO',
+                center: [37.7749, -122.4194],
+                zoom: 14,
+                csvFile: 'sfo-Health_Inspection_Scores__2024-Present__20250731.csv',
+                apiUrl: 'https://data.sfgov.org/resource/tvy3-wexg.json',
+                maxApiLimit: 50000, // SF API limit
+                dataMapping: {
+                    name: 'dba',
+                    inspectionDate: 'inspection_date',
+                    address: 'street_address',
+                    zipCode: '', // No zip code in SF data
+                    latitude: 'latitude',
+                    longitude: 'longitude',
+                    inspectionType: 'inspection_type',
+                    inspectionScore: 'violation_count',
+                    inspectionResult: 'facility_rating_status',
+                    violationType: 'violation_codes',
+                    violationPoints: 'violation_count', // Using violation count as points
+                    grade: 'facility_rating_status',
+                    businessId: 'permit_number'
+                },
+                apiMapping: {
+                    name: 'dba',
+                    inspectionDate: 'inspection_date',
+                    address: 'street_address',
+                    zipCode: '',
+                    latitude: 'latitude',
+                    longitude: 'longitude',
+                    inspectionType: 'inspection_type',
+                    inspectionScore: 'violation_count',
+                    inspectionResult: 'facility_rating_status',
+                    violationType: 'violation_codes',
+                    violationPoints: 'violation_count',
+                    grade: 'facility_rating_status',
+                    businessId: 'permit_number'
+                }
             }
         };
 
@@ -636,6 +716,10 @@
                 titleCharWidth = 42.5;
             } else if (titleText === 'NEW YORK') {
                 titleCharWidth = 47;
+            } else if (titleText === 'CHICAGO') {
+                titleCharWidth = 45;
+            } else if (titleText === 'SAN FRANCISCO') {
+                titleCharWidth = 43;
             } else {
                 titleCharWidth = 42.5; // default fallback
             }
@@ -690,6 +774,8 @@
             // Update city selector buttons
             document.getElementById('seattle-btn').classList.toggle('active', city === 'seattle');
             document.getElementById('nyc-btn').classList.toggle('active', city === 'nyc');
+            document.getElementById('chicago-btn').classList.toggle('active', city === 'chicago');
+            document.getElementById('sfo-btn').classList.toggle('active', city === 'sfo');
             
             // Fly to new city
             map.flyTo(cityConfigs[city].center, cityConfigs[city].zoom, {
@@ -716,7 +802,10 @@
 
         // Toggle between cities (for clicking title)
         function toggleCity() {
-            const nextCity = currentCity === 'seattle' ? 'nyc' : 'seattle';
+            const cities = ['seattle', 'nyc', 'chicago', 'sfo'];
+            const currentIndex = cities.indexOf(currentCity);
+            const nextIndex = (currentIndex + 1) % cities.length;
+            const nextCity = cities[nextIndex];
             switchCity(nextCity);
         }
 
@@ -776,16 +865,34 @@
         // Grade color mapping
         function getGradeColor(grade) {
             const gradeColors = {
-                'A': '#2e7d32',  // Green
-                'B': '#689f38',  // Light Green  
-                'C': '#fbc02d',  // Yellow
+                // NYC and standard grades
+                'A': '#2e7d32',  // Green - Excellent
+                'B': '#689f38',  // Light Green - Good
+                'C': '#fbc02d',  // Yellow - Satisfactory
                 'P': '#f57c00',  // Orange - Pending
                 'Z': '#d32f2f',  // Red - Grade Pending
-                '1': '#2e7d32',  // Green - Seattle grades
-                '2': '#689f38',  // Light Green
-                '3': '#fbc02d',  // Yellow
-                '4': '#f57c00',  // Orange
-                '5': '#d32f2f'   // Red
+                
+                // Seattle numeric grades
+                '1': '#2e7d32',  // Green - Seattle excellent
+                '2': '#689f38',  // Light Green - Seattle good
+                '3': '#fbc02d',  // Yellow - Seattle satisfactory
+                '4': '#f57c00',  // Orange - Seattle needs improvement
+                '5': '#d32f2f',  // Red - Seattle poor
+                
+                // Chicago results
+                'Pass': '#2e7d32',           // Green
+                'Pass w/ Conditions': '#689f38',  // Light Green
+                'Fail': '#d32f2f',           // Red
+                'Not Ready': '#9e9e9e',      // Gray
+                'No Entry': '#9e9e9e',       // Gray
+                'Out of Business': '#616161', // Dark Gray
+                
+                // San Francisco facility rating status
+                'Pass': '#2e7d32',           // Green
+                'Conditional Pass': '#689f38', // Light Green
+                'Closure': '#d32f2f',        // Red
+                'Reinspection': '#f57c00',   // Orange
+                'Suspend': '#d32f2f'         // Red
             };
             return gradeColors[grade] || '#9e9e9e';
         }
@@ -1093,33 +1200,84 @@
                     const lat = parseFloat(getValueWithFallback(d, config.dataMapping.latitude, ['LAT', 'lat', 'LATITUDE']));
                     const lng = parseFloat(getValueWithFallback(d, config.dataMapping.longitude, ['LON', 'lng', 'LONGITUDE', 'lon']));
 
+                    // Handle city-specific data processing
+                    let violationPoints = 0;
+                    let riskLevel = 'low';
+                    
+                    if (city === 'chicago') {
+                        // Chicago has Risk column and violation text, calculate points from violations
+                        const riskText = getValueWithFallback(d, config.dataMapping.risk, []) || '';
+                        const violationText = getValueWithFallback(d, config.dataMapping.violationType, []) || '';
+                        
+                        // Extract risk level from Chicago risk text
+                        if (riskText.includes('Risk 1') || riskText.includes('High')) {
+                            riskLevel = 'high';
+                            violationPoints = 20; // High risk default
+                        } else if (riskText.includes('Risk 2') || riskText.includes('Medium')) {
+                            riskLevel = 'medium';
+                            violationPoints = 10; // Medium risk default
+                        } else {
+                            riskLevel = 'low';
+                            violationPoints = 2; // Low risk default
+                        }
+                        
+                        // Adjust points based on inspection result
+                        const result = getValueWithFallback(d, config.dataMapping.inspectionResult, []) || '';
+                        if (result === 'Fail') {
+                            violationPoints += 10;
+                        } else if (result === 'Pass w/ Conditions') {
+                            violationPoints += 5;
+                        }
+                        
+                    } else if (city === 'sfo') {
+                        // San Francisco uses violation_count
+                        violationPoints = parseInt(getValueWithFallback(d, config.dataMapping.violationPoints, [])) || 0;
+                        
+                        // Classify based on violation count for SF
+                        if (violationPoints >= 10) {
+                            riskLevel = 'high';
+                        } else if (violationPoints >= 3) {
+                            riskLevel = 'medium';
+                        } else {
+                            riskLevel = 'low';
+                        }
+                        
+                    } else {
+                        // Seattle and NYC use standard violation points
+                        violationPoints = parseInt(getValueWithFallback(d, config.dataMapping.violationPoints, ['POINTS', 'points', 'score', 'Score'])) || 0;
+                        riskLevel = classifyRisk(violationPoints);
+                    }
+
                     const processed = {
                         name: getValueWithFallback(d, config.dataMapping.name, ['BUSINESS_NAME', 'BusinessName', 'NAME']) || '',
                         inspectionDate: inspectionDate || new Date(),
                         address: getValueWithFallback(d, config.dataMapping.address, ['ADDRESS', 'STREET', 'Street']) || '',
-                        zipCode: getValueWithFallback(d, config.dataMapping.zipCode, ['ZIP', 'zip', 'ZIP_CODE']) || '',
+                        zipCode: getValueWithFallback(d, config.dataMapping.zipCode, ['ZIP', 'zip', 'ZIP_CODE']) || 'N/A',
                         latitude: lat,
                         longitude: lng,
                         inspectionType: getValueWithFallback(d, config.dataMapping.inspectionType, ['TYPE', 'type']) || '',
                         inspectionScore: parseInt(getValueWithFallback(d, config.dataMapping.inspectionScore, ['score', 'Score'])) || 0,
                         inspectionResult: getValueWithFallback(d, config.dataMapping.inspectionResult, ['RESULT', 'result']) || '',
                         violationType: getValueWithFallback(d, config.dataMapping.violationType, ['VIOLATION', 'violation']) || '',
-                        violationPoints: parseInt(getValueWithFallback(d, config.dataMapping.violationPoints, ['POINTS', 'points', 'score', 'Score'])) || 0,
+                        violationPoints: violationPoints,
                         grade: getValueWithFallback(d, config.dataMapping.grade, ['grade', 'Grade']) || '',
                         businessId: getValueWithFallback(d, config.dataMapping.businessId, ['ID', 'id', 'business_id']) || '',
-                        riskLevel: classifyRisk(getValueWithFallback(d, config.dataMapping.violationPoints, ['POINTS', 'points', 'score', 'Score'])),
+                        riskLevel: riskLevel,
                         source: 'csv' // Track data source
                     };
                     
                     return processed;
                 }).filter(d => {
                     // Filter for valid records with coordinates
-                    const hasValidCoords = d.latitude && d.longitude && d.zipCode && !isNaN(d.latitude) && !isNaN(d.longitude);
+                    const hasValidCoords = d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude);
+                    
+                    // For cities without zip codes (Chicago, SF), don't require zipCode
+                    const hasLocation = city === 'chicago' || city === 'sfo' ? hasValidCoords : (hasValidCoords && d.zipCode);
                     
                     // Filter for current year only
                     const isCurrentYear = d.inspectionDate && d.inspectionDate.getFullYear() === currentYear;
                     
-                    return hasValidCoords && isCurrentYear;
+                    return hasLocation && isCurrentYear;
                 });
 
                 console.log(`Processed CSV data: ${processedCsvData.length} valid records for ${currentYear}`);
