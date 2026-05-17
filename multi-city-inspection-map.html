@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>United States Food Establishment Inspection, Mapped</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="vendor/d3.v7.min.js"></script>
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
     <style>
         * {
             margin: 0;
@@ -557,8 +557,7 @@
                 center: [47.6105, -122.3193],
                 zoom: 14,
                 csvFile: 'seattle-Food_Establishment_Inspection_Data.csv',
-                apiUrl: 'https://data.kingcounty.gov/resource/f29f-zza5.json',
-                maxApiLimit: 10000, // King County API limit
+                supplementalFile: 'data/seattle-supplemental.json',
                 dataMapping: {
                     name: 'Name',
                     inspectionDate: 'Inspection Date',
@@ -595,8 +594,7 @@
                 center: [40.7128, -74.0060],
                 zoom: 14,
                 csvFile: 'nyc-DOHMH_New_York_City_Restaurant_Inspection_Results_20250726.csv',
-                apiUrl: 'https://data.cityofnewyork.us/resource/43nn-pn8j.json',
-                maxApiLimit: 50000, // SODA 2.0 API limit
+                supplementalFile: 'data/nyc-supplemental.json',
                 dataMapping: {
                     name: 'DBA',
                     inspectionDate: 'INSPECTION DATE',
@@ -633,8 +631,7 @@
                 center: [41.8781, -87.6298],
                 zoom: 14,
                 csvFile: 'chicago-Food_Inspections_20250731.csv',
-                apiUrl: 'https://data.cityofchicago.org/api/v3/views/4ijn-s7e5/query.json',
-                maxApiLimit: 50000, // Chicago API limit
+                supplementalFile: 'data/chicago-supplemental.json',
                 dataMapping: {
                     name: 'DBA Name',
                     inspectionDate: 'Inspection Date',
@@ -655,7 +652,7 @@
                     name: 'dba_name',
                     inspectionDate: 'inspection_date',
                     address: 'address',
-                    zipCode: '',
+                    zipCode: 'zip',
                     latitude: 'latitude',
                     longitude: 'longitude',
                     inspectionType: 'inspection_type',
@@ -673,8 +670,7 @@
                 center: [37.7749, -122.4194],
                 zoom: 14,
                 csvFile: 'sfo-Health_Inspection_Scores__2024-Present__20250731.csv',
-                apiUrl: 'https://data.sfgov.org/resource/tvy3-wexg.json',
-                maxApiLimit: 50000, // SF API limit
+                supplementalFile: 'data/sfo-supplemental.json',
                 dataMapping: {
                     name: 'dba',
                     inspectionDate: 'inspection_date',
@@ -1084,71 +1080,33 @@
             }
         }
 
-        // Load supplemental data from API with pagination
+        // Load supplemental data from local snapshot file
         async function loadSupplementalAPIData(city, signal = null) {
             const config = cityConfigs[city];
-            if (!config.apiUrl) {
-                console.log(`No API configured for ${city}`);
+            if (!config.supplementalFile) {
+                console.log(`No supplemental file configured for ${city}`);
                 return [];
             }
-            
-            console.log(`Loading supplemental data from API for ${city}`);
+
+            console.log(`Loading supplemental data for ${city} from ${config.supplementalFile}`);
             const currentYear = new Date().getFullYear();
-            const allApiData = [];
-            let offset = 0;
-            const limit = 1000; // Batch size per request
-            let hasMoreData = true;
-            
+            let allApiData = [];
+
             try {
-                while (hasMoreData && allApiData.length < config.maxApiLimit) {
-                    // Check if loading was aborted
-                    if (signal && signal.aborted) {
-                        throw new Error('Loading aborted');
-                    }
-                    
-                    // Build API URL with pagination and date filter
-                    const apiUrl = new URL(config.apiUrl);
-                    apiUrl.searchParams.set('$limit', limit.toString());
-                    apiUrl.searchParams.set('$offset', offset.toString());
-                    
-                    // Filter for current year data
-                    if (city === 'seattle') {
-                        apiUrl.searchParams.set('$where', `date_extract_y(inspection_date) = ${currentYear}`);
-                    } else if (city === 'nyc') {
-                        apiUrl.searchParams.set('$where', `date_extract_y(inspection_date) = ${currentYear}`);
-                    }
-                    
-                    console.log(`Fetching API data: offset=${offset}, limit=${limit}`);
-                    
-                    const response = await fetch(apiUrl.toString(), { signal });
-                    
-                    if (!response.ok) {
-                        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-                    }
-                    
-                    const batchData = await response.json();
-                    
-                    // Check if we got data
-                    if (!batchData || batchData.length === 0) {
-                        hasMoreData = false;
-                        break;
-                    }
-                    
-                    allApiData.push(...batchData);
-                    offset += limit;
-                    
-                    // If we got less than the limit, we've reached the end
-                    if (batchData.length < limit) {
-                        hasMoreData = false;
-                    }
-                    
-                    console.log(`API batch loaded: ${batchData.length} records, total: ${allApiData.length}`);
-                    
-                    // Small delay to prevent overwhelming the API
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                if (signal && signal.aborted) {
+                    throw new Error('Loading aborted');
                 }
-                
-                console.log(`API data loading complete: ${allApiData.length} total records from ${city} API`);
+
+                allApiData = await d3.json(config.supplementalFile);
+                if (!Array.isArray(allApiData)) {
+                    allApiData = [];
+                }
+
+                if (signal && signal.aborted) {
+                    throw new Error('Loading aborted');
+                }
+
+                console.log(`Supplemental data loaded: ${allApiData.length} records from ${city}`);
                 
                 // Process API data to match our internal format
                 const processedApiData = allApiData.map(d => {
@@ -1187,11 +1145,14 @@
                         source: 'api' // Track data source
                     };
                 }).filter(d => {
-                    // Filter for valid records with coordinates
-                    const hasValidCoords = d.latitude && d.longitude && d.zipCode && 
+                    // Filter for valid records with coordinates (Chicago/SFO have no zip code field)
+                    const hasValidCoords = d.latitude && d.longitude &&
                                          !isNaN(d.latitude) && !isNaN(d.longitude);
-                    const isCurrentYear = d.inspectionDate.getFullYear() === currentYear;
-                    return hasValidCoords && isCurrentYear;
+                    const hasLocation = (city === 'chicago' || city === 'sfo')
+                        ? hasValidCoords
+                        : (hasValidCoords && d.zipCode);
+                    const inWindow = d.inspectionDate.getFullYear() >= currentYear - 1;
+                    return hasLocation && inWindow;
                 });
                 
                 console.log(`Processed API data: ${processedApiData.length} valid records`);
@@ -1247,9 +1208,10 @@
                 console.log(`Raw CSV data loaded: ${csvData.length} records`);
                 updateProgress(1, 4, `Processing ${csvData.length} CSV records...`, 'data');
                 
-                // Get current year for filtering
+                // Keep current year and the previous year so prior-year CSV data still shows
                 const currentYear = new Date().getFullYear();
-                console.log(`Filtering data for current year: ${currentYear}`);
+                const minYear = currentYear - 1;
+                console.log(`Filtering data for ${minYear}-${currentYear}`);
                 
                 // Process CSV data
                 const processedCsvData = csvData.map(d => {
@@ -1347,13 +1309,13 @@
                     // For cities without zip codes (Chicago, SF), don't require zipCode
                     const hasLocation = city === 'chicago' || city === 'sfo' ? hasValidCoords : (hasValidCoords && d.zipCode);
                     
-                    // Filter for current year only
-                    const isCurrentYear = d.inspectionDate && d.inspectionDate.getFullYear() === currentYear;
-                    
-                    return hasLocation && isCurrentYear;
+                    // Keep current year and the previous year
+                    const inWindow = d.inspectionDate && d.inspectionDate.getFullYear() >= minYear;
+
+                    return hasLocation && inWindow;
                 });
 
-                console.log(`Processed CSV data: ${processedCsvData.length} valid records for ${currentYear}`);
+                console.log(`Processed CSV data: ${processedCsvData.length} valid records for ${minYear}-${currentYear}`);
                 
                 // Check if aborted before API load
                 if (signal && signal.aborted) {
@@ -1411,7 +1373,7 @@
                 console.log(`Data merged: ${mergedData.length} total records (${apiOverwrites} API overwrites)`);
                 
                 if (mergedData.length === 0) {
-                    throw new Error(`No valid records found for ${city} in ${currentYear}. Data may be from a different year or have mapping issues.`);
+                    throw new Error(`No valid records found for ${city} in ${minYear}-${currentYear}. Data may be from a different year or have mapping issues.`);
                 }
                 
                 // Create spatial index for fast queries

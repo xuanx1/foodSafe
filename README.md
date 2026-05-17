@@ -18,12 +18,6 @@ An interactive web application that visualizes food establishment inspection dat
 - **Chicago** - City of Chicago food inspection records  
 - **San Francisco** - SF health inspection scores
 
-### 📊 Data Integration
-- **Hybrid data sources**: Combines CSV files with live API feeds
-- **Real-time updates** from city government APIs
-- **Data deduplication** prioritizing API data over static CSV files
-- **Spatial indexing** for fast geographic queries
-
 ### 🎛️ Advanced Filtering
 - **Inspection Type** filtering (varies by city)
 - **Grade/Result** filtering with city-specific grading systems
@@ -31,12 +25,6 @@ An interactive web application that visualizes food establishment inspection dat
 - **Date range** filtering for temporal analysis
 - **Real-time statistics** showing filtered results
 
-### 🎨 Professional UI/UX
-- **Gotham font family** throughout the interface for consistency
-- **City selector** with smooth transitions between locations
-- **Progress indicators** for data loading and marker rendering
-- **Responsive design** with semi-transparent overlay panels
-- **Dynamic legends** that update based on current city context
 
 ## City-Specific Risk Classifications
 
@@ -60,13 +48,6 @@ An interactive web application that visualizes food establishment inspection dat
 - **Medium Risk**: 3-9 violations
 - **Low Risk**: 0-2 violations
 
-## Technical Architecture
-
-### Frontend
-- **D3.js v7** for data loading and CSV parsing
-- **Leaflet.js v1.9.4** for interactive mapping
-- **Vanilla JavaScript** with modern ES6+ features
-- **Custom CSS** with backdrop filters and smooth animations
 
 ### Data Processing
 - **Multi-format support**: CSV files and JSON APIs
@@ -109,23 +90,6 @@ An interactive web application that visualizes food establishment inspection dat
 3. **Apply filters** to narrow down inspections by type, grade, risk level, or date range
 4. **Click markers** to view detailed inspection information
 5. **Use the legends** to understand risk classifications and grading systems
-
-## File Structure
-```
-foodSafe/
-├── multi-city-inspection-map.html     # Main application
-├── seattle-Food_Establishment_Inspection_Data.csv
-├── nyc-DOHMH_New_York_City_Restaurant_Inspection_Results.csv  
-├── chicago-Food_Inspections.csv
-├── sfo-Health_Inspection_Scores.csv
-└── README.md
-```
-
-## Browser Compatibility
-- Modern browsers with ES6+ support
-- Chrome/Edge 88+, Firefox 85+, Safari 14+
-- Requires JavaScript enabled
-- Optimized for desktop and tablet viewing
 
 ---
 
