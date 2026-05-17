@@ -824,7 +824,7 @@
 
         .city-subtitle {
             position: absolute;
-            bottom: 100px;
+            bottom: 110px;
             left: 25px;
             padding: 0px 15px;
             z-index: 999;
@@ -912,7 +912,87 @@
 
         /* No tile basemap — the Leaflet container is the editorial paper background */
         .leaflet-container { background: var(--paper-2) !important; }
-        .leaflet-tile-pane { display: none; }
+        .leaflet-tile-pane { filter: grayscale(0.35) sepia(0.18) brightness(1.02); opacity: 0.78; }
+
+        /* Per-district hover tooltip */
+        .leaflet-tooltip.district-tooltip {
+            background: var(--paper);
+            color: var(--ink);
+            border: 1px solid var(--ink);
+            border-radius: 0;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            padding: 10px 12px 11px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.45;
+            min-width: 200px;
+            white-space: normal;
+        }
+        .leaflet-tooltip.district-tooltip::before { display: none; }
+        .district-tooltip .dt-name {
+            font-family: 'Gotham Bold', 'Gotham', 'Helvetica Neue', Arial, sans-serif;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--ink);
+        }
+        .district-tooltip .dt-grade-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .district-tooltip .dt-grade {
+            display: inline-block;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 2px 9px;
+            letter-spacing: 0.04em;
+        }
+        .district-tooltip .dt-index {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+        .district-tooltip .dt-index-suffix {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink-3, #8a8578);
+            margin-left: 2px;
+        }
+        .district-tooltip .dt-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            font-size: 12px;
+            color: var(--ink);
+        }
+        .district-tooltip .dt-row span:first-child {
+            color: var(--ink-3, #8a8578);
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 10px;
+        }
+        .district-tooltip .dt-row strong {
+            font-weight: 700;
+        }
+        .district-tooltip .dt-breakdown {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0,0,0,0.12);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+        .district-tooltip .dt-empty {
+            font-size: 11px;
+            color: var(--ink-3, #8a8578);
+            font-style: italic;
+        }
 
         /* Leaflet zoom control restyle */
         .leaflet-control-zoom {
@@ -1043,7 +1123,7 @@
             </table>
 
             <h2>The Quality Index</h2>
-            <p>Each district's index is the average of its inspections on that 0–100 scale: closer to 100 the cleaner, closer to 0 the worse. We use ZIP codes in Seattle and Chicago, boroughs in New York and official neighbourhoods in San Francisco. Anywhere fewer than five inspections fall inside the current filters is dropped from the ranking so a single bad visit can't tank a whole area.</p>
+            <p>Each district's index is the average of its inspections on that 0–100 scale: closer to 100 the cleaner, closer to 0 the worse. We use ZIP codes in Seattle and Chicago, NTA neighbourhoods in New York and official neighbourhoods in San Francisco. Anywhere fewer than five inspections fall inside the current filters is dropped from the ranking so a single bad visit can't tank a whole area.</p>
 
             <p>The colour fill on the map is the same scale: greener districts have higher quality indexes, redder ones lower.</p>
 
@@ -1238,8 +1318,8 @@
                 zoom: 14,
                 csvFile: 'nyc-DOHMH_New_York_City_Restaurant_Inspection_Results_20250726.csv',
                 supplementalFile: 'data/nyc-supplemental.json',
-                districtLabel: 'Borough',
-                geo: { cityFile: 'data/geo/nyc-boroughs.geojson', districtKey: 'BoroName' },
+                districtLabel: 'Neighbourhood',
+                geo: { cityFile: 'data/geo/nyc-boroughs.geojson', districtFile: 'data/geo/nyc-ntas.geojson', districtKey: 'nta2020' },
                 dataMapping: {
                     name: 'DBA',
                     inspectionDate: 'INSPECTION DATE',
@@ -1254,7 +1334,7 @@
                     violationPoints: 'SCORE',
                     grade: 'GRADE',
                     businessId: 'CAMIS',
-                    district: 'BORO'
+                    district: 'NTA'
                 },
                 apiMapping: {
                     name: 'dba',
@@ -1270,7 +1350,7 @@
                     violationPoints: 'score',
                     grade: 'grade',
                     businessId: 'camis',
-                    district: 'boro'
+                    district: 'nta'
                 }
             },
             chicago: {
@@ -1647,19 +1727,93 @@
         // Currently mounted geojson layers (city outline + district polygons)
         let cityBoundaryLayer = null;
         let districtBoundaryLayer = null;
+
+        // NYC NTA polygons indexed by bbox for point-in-polygon at runtime. Populated
+        // when the NTA geojson loads. The supplemental DOHMH feed uses NTA 2010 codes
+        // (4-char) which don't match our NTA 2020 geojson keys (6-char) — we re-tag
+        // those records by lat/lon so both data sources speak the same NTA vintage.
+        let nycNtaPolygons = null;
+        let nycNtaPolygonsReady = null;
+        let nycNtaPolygonsReadyResolve = null;
+        function ensureNycNtaPolygonsReady() {
+            if (nycNtaPolygons) return Promise.resolve();
+            if (!nycNtaPolygonsReady) {
+                nycNtaPolygonsReady = new Promise(res => { nycNtaPolygonsReadyResolve = res; });
+            }
+            return nycNtaPolygonsReady;
+        }
+        function pipPointInRing(x, y, ring) {
+            let inside = false;
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                const xi = ring[i][0], yi = ring[i][1];
+                const xj = ring[j][0], yj = ring[j][1];
+                if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+            }
+            return inside;
+        }
+        function nycNtaAt(lng, lat) {
+            if (!nycNtaPolygons || !Number.isFinite(lng) || !Number.isFinite(lat)) return '';
+            for (const n of nycNtaPolygons) {
+                const b = n.bbox;
+                if (lng < b[0] || lng > b[2] || lat < b[1] || lat > b[3]) continue;
+                for (const poly of n.polys) {
+                    if (!poly.length || !pipPointInRing(lng, lat, poly[0])) continue;
+                    let inHole = false;
+                    for (let h = 1; h < poly.length; h++) {
+                        if (pipPointInRing(lng, lat, poly[h])) { inHole = true; break; }
+                    }
+                    if (!inHole) return n.code;
+                }
+            }
+            return '';
+        }
         const geoCache = {};
 
         // Diverging fill scale for the choropleth.
         // 0  = every inspection was high-risk → deep red.
         // 100 = every inspection was low-risk → forest green.
-        function colorForScore(score) {
-            if (score === null || score === undefined) return null;
-            if (score >= 80) return '#2E5A3E';
-            if (score >= 65) return '#6f9a73';
-            if (score >= 50) return '#c5b988';
-            if (score >= 35) return '#C97D2C';
-            return '#B22234';
+        // Five-colour ramp, worst → best.
+        const SCORE_RAMP = ['#B22234', '#C97D2C', '#c5b988', '#6f9a73', '#2E5A3E'];
+
+        // Build a colour function from the district stats currently in view. Splits the
+        // distribution into quintiles so the spread is *relative*: the worst fifth fills
+        // red, the best fifth fills green, regardless of whether absolute scores cluster
+        // high (NYC's heavy A-grade bias) or low. Falls back to fixed thresholds for
+        // tiny samples where quintiles don't carry meaning.
+        function buildColorScale(stats) {
+            const idxs = (stats || [])
+                .map(s => s.qualityIndex)
+                .filter(v => Number.isFinite(v))
+                .sort((a, b) => a - b);
+            if (idxs.length < 5) {
+                return score => {
+                    if (score === null || score === undefined) return null;
+                    if (score >= 80) return SCORE_RAMP[4];
+                    if (score >= 65) return SCORE_RAMP[3];
+                    if (score >= 50) return SCORE_RAMP[2];
+                    if (score >= 35) return SCORE_RAMP[1];
+                    return SCORE_RAMP[0];
+                };
+            }
+            const q = p => idxs[Math.min(idxs.length - 1, Math.floor(p * idxs.length))];
+            const breaks = [q(0.2), q(0.4), q(0.6), q(0.8)];
+            return score => {
+                if (score === null || score === undefined) return null;
+                if (score < breaks[0]) return SCORE_RAMP[0];
+                if (score < breaks[1]) return SCORE_RAMP[1];
+                if (score < breaks[2]) return SCORE_RAMP[2];
+                if (score < breaks[3]) return SCORE_RAMP[3];
+                return SCORE_RAMP[4];
+            };
         }
+
+        // Live colour scale, rebuilt each time stats are recomputed. Choropleth + rankings
+        // read from the same function so the legend stays consistent.
+        let currentColorScale = buildColorScale([]);
+
+        // Stat lookup keyed by joinKey(district code). Populated by updateChoropleth and
+        // read by the district hover tooltip so both stay in sync with the active filters.
+        let currentStatByKey = new Map();
 
         // SF's data uses newer "analysis neighborhoods" while the geojson uses older boundary
         // names; map a few common variants onto the geojson keys so the choropleth fills more
@@ -1693,6 +1847,7 @@
                     if (!statByKey.has(aliasK)) statByKey.set(aliasK, s);
                 }
             });
+            currentStatByKey = statByKey;
 
             districtBoundaryLayer.eachLayer(layer => {
                 const propValue = layer.feature && layer.feature.properties && layer.feature.properties[key];
@@ -1700,8 +1855,8 @@
                 const stat = statByKey.get(k);
                 if (stat) {
                     layer.setStyle({
-                        fillColor: colorForScore(stat.qualityIndex),
-                        fillOpacity: 0.55,
+                        fillColor: currentColorScale(stat.qualityIndex),
+                        fillOpacity: 0.78,
                         color: '#3d3d3d',
                         weight: 0.7,
                         opacity: 0.7
@@ -1744,8 +1899,41 @@
             ]);
 
             if (districtGeo) {
+                // NYC's NTA layer carries display names alongside codes — populate the
+                // code→name lookup once on load so rankings can show "Greenpoint · BK0101".
+                // Also build a bbox-indexed PIP table so the supplemental feed (which
+                // publishes the older NTA 2010 codes) can be re-tagged with NTA 2020 codes
+                // from lat/lon at load time.
+                if (city === 'nyc') {
+                    const lookup = ZIP_TO_NEIGHBORHOOD.nyc || (ZIP_TO_NEIGHBORHOOD.nyc = {});
+                    nycNtaPolygons = [];
+                    for (const f of districtGeo.features) {
+                        const code = f.properties && f.properties.nta2020;
+                        const name = f.properties && f.properties.ntaname;
+                        if (code && name && !lookup[code]) lookup[code] = name;
+                        if (!code || !f.geometry) continue;
+                        const polys = [];
+                        if (f.geometry.type === 'Polygon') polys.push(f.geometry.coordinates);
+                        else if (f.geometry.type === 'MultiPolygon') for (const p of f.geometry.coordinates) polys.push(p);
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        for (const poly of polys) for (const ring of poly) for (const c of ring) {
+                            if (c[0] < minX) minX = c[0];
+                            if (c[1] < minY) minY = c[1];
+                            if (c[0] > maxX) maxX = c[0];
+                            if (c[1] > maxY) maxY = c[1];
+                        }
+                        nycNtaPolygons.push({ code, polys, bbox: [minX, minY, maxX, maxY] });
+                    }
+                    if (nycNtaPolygonsReadyResolve) { nycNtaPolygonsReadyResolve(); nycNtaPolygonsReadyResolve = null; }
+                }
                 districtBoundaryLayer = L.geoJSON(districtGeo, {
-                    pane: 'boundariesPane',
+                    pane: 'districtsPane',
+                    // NYC's NTA file includes cemeteries, airports, parks and Rikers as their
+                    // own polygons (ntatype != '0'); those will never carry restaurant data,
+                    // so skip them rather than leave 65 empty cream blobs on the map.
+                    filter: city === 'nyc'
+                        ? f => f.properties && f.properties.ntatype === '0'
+                        : undefined,
                     style: {
                         color: '#a59f8b',
                         weight: 0.6,
@@ -1753,7 +1941,14 @@
                         fillColor: '#faf7f0',
                         fillOpacity: 0.92
                     },
-                    interactive: false
+                    onEachFeature: (feature, layer) => {
+                        layer.bindTooltip(() => buildDistrictTooltip(feature), {
+                            sticky: true,
+                            direction: 'auto',
+                            className: 'district-tooltip',
+                            opacity: 1
+                        });
+                    }
                 }).addTo(map);
             }
 
@@ -1761,9 +1956,7 @@
                 cityBoundaryLayer = L.geoJSON(cityGeo, {
                     pane: 'boundariesPane',
                     style: {
-                        color: '#111',
-                        weight: 2,
-                        opacity: 0.9,
+                        stroke: false,
                         fillColor: '#faf7f0',
                         fillOpacity: districtGeo ? 0 : 0.92
                     },
@@ -1773,7 +1966,9 @@
 
             // If data is already loaded, paint the choropleth straight away.
             if (inspectionData && inspectionData.length > 0) {
-                updateChoropleth(computeDistrictStats(getFilteredData()));
+                const stats = computeDistrictStats(getFilteredData());
+                currentColorScale = buildColorScale(stats);
+                updateChoropleth(stats);
             }
         }
 
@@ -1785,13 +1980,23 @@
                 scrollWheelZoom: false
             }).setView(cityConfigs[currentCity].center, cityConfigs[currentCity].zoom);
 
-            // No tile layer — the map is rendered locally from our geojsons over a paper
-            // background. Avoids any runtime network dependency.
+            // Carto Positron basemap — light, muted, sits comfortably under the paper-toned
+            // boundaries. Gives context outside city limits without overwhelming the choropleth.
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
 
             // Custom pane below the default overlayPane so boundaries sit under the markers
             map.createPane('boundariesPane');
             map.getPane('boundariesPane').style.zIndex = 350;
             map.getPane('boundariesPane').style.pointerEvents = 'none';
+
+            // Separate pane for district polygons, slightly above so they can receive
+            // hover events for the per-district tooltip.
+            map.createPane('districtsPane');
+            map.getPane('districtsPane').style.zIndex = 380;
 
             // Boundary outlines for the starting city
             loadGeoLayers(currentCity);
@@ -1996,6 +2201,47 @@
             return district;
         }
 
+        // Friendly hygiene grade for the tooltip — A+/A/B/C/D anchored to the
+        // quality index (0–100) so the wording matches the colour ramp at a glance.
+        function gradeForScore(score) {
+            if (score === null || score === undefined) return '—';
+            if (score >= 90) return 'A+';
+            if (score >= 80) return 'A';
+            if (score >= 65) return 'B';
+            if (score >= 50) return 'C';
+            return 'D';
+        }
+
+        // Tooltip content for a district polygon. Reads from currentStatByKey, which
+        // is updated every time the choropleth refreshes — so the hover content always
+        // matches the current filters.
+        function buildDistrictTooltip(feature) {
+            const cfg = cityConfigs[currentCity];
+            const key = cfg && cfg.geo && cfg.geo.districtKey;
+            const code = (key && feature.properties) ? feature.properties[key] : '';
+            const nameLabel = formatDistrictLabel(code, currentCity) || code || 'District';
+            const stat = code ? currentStatByKey.get(joinKey(code)) : null;
+            if (!stat) {
+                return `<div class="dt-name">${nameLabel}</div>
+                    <div class="dt-empty">No inspection data in current view</div>`;
+            }
+            const color = currentColorScale(stat.qualityIndex) || '#444';
+            const grade = gradeForScore(stat.qualityIndex);
+            const restaurants = stat.restaurants ? stat.restaurants.toLocaleString() : '—';
+            return `<div class="dt-name">${nameLabel}</div>
+                <div class="dt-grade-row">
+                    <span class="dt-grade" style="background:${color}">${grade}</span>
+                    <span class="dt-index">${stat.qualityIndex}<span class="dt-index-suffix">/100</span></span>
+                </div>
+                <div class="dt-row"><span>Restaurants</span><strong>${restaurants}</strong></div>
+                <div class="dt-row"><span>Inspections</span><strong>${stat.count.toLocaleString()}</strong></div>
+                <div class="dt-breakdown">
+                    <span style="color:var(--accent-green)">${stat.low.toLocaleString()} low</span>
+                    <span style="color:var(--accent-ochre)">${stat.medium.toLocaleString()} med</span>
+                    <span style="color:var(--accent-red)">${stat.high.toLocaleString()} high</span>
+                </div>`;
+        }
+
         // Normalize district names so e.g. "manhattan", "MANHATTAN", " Manhattan " all collapse.
         function normalizeDistrict(value) {
             if (value === null || value === undefined) return '';
@@ -2003,6 +2249,8 @@
             if (!str) return '';
             // Keep numeric districts (zip codes, council ids) as-is. Title-case word districts.
             if (/^[\d-]+$/.test(str)) return str;
+            // NYC NTA codes like "BK0101", "MN17" — uppercase letters + digits — keep verbatim.
+            if (/^[A-Za-z]{2}\d+$/.test(str)) return str.toUpperCase();
             return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
         }
 
@@ -2020,7 +2268,9 @@
             buckets.forEach((rows, district) => {
                 if (rows.length < MIN_SAMPLE) return;
                 let total = 0, high = 0, medium = 0, low = 0;
+                const businessIds = new Set();
                 rows.forEach(r => {
+                    if (r.businessId) businessIds.add(r.businessId);
                     if (r.riskLevel === 'low') { total += 100; low++; }
                     else if (r.riskLevel === 'medium') { total += 50; medium++; }
                     else { high++; }
@@ -2028,6 +2278,7 @@
                 stats.push({
                     district,
                     count: rows.length,
+                    restaurants: businessIds.size,
                     qualityIndex: Math.round(total / rows.length),
                     high, medium, low
                 });
@@ -2057,9 +2308,7 @@
             }
 
             const row = (s, idx) => {
-                const color = s.qualityIndex >= 70 ? 'var(--accent-green)'
-                            : s.qualityIndex >= 40 ? 'var(--accent-ochre)'
-                            : 'var(--accent-red)';
+                const color = currentColorScale(s.qualityIndex) || 'var(--accent-ochre)';
                 return `
                     <div class="rankings-row">
                         <span class="rankings-rank">${idx + 1}.</span>
@@ -2170,6 +2419,22 @@
                     return hasLocation && inWindow;
                 });
                 
+                // NYC supplemental ships NTA 2010 codes; our geojson uses NTA 2020. Wait
+                // for the NTA polygons to load, then re-tag each record's district from
+                // its lat/lon so both data sources speak the same NTA vintage.
+                if (city === 'nyc') {
+                    await ensureNycNtaPolygonsReady();
+                    if (nycNtaPolygons) {
+                        let retagged = 0;
+                        for (const r of processedApiData) {
+                            const code = nycNtaAt(r.longitude, r.latitude);
+                            r.district = code;
+                            if (code) retagged++;
+                        }
+                        console.log(`Re-tagged ${retagged}/${processedApiData.length} supplemental records to NTA 2020 codes`);
+                    }
+                }
+
                 console.log(`Processed API data: ${processedApiData.length} valid records`);
                 return processedApiData;
                 
@@ -2211,9 +2476,16 @@
                     throw new Error('Loading aborted');
                 }
                 
-                // Load CSV data (main source)
+                // Load CSV data (main source). Cache-bust on every load so an old
+                // browser-cached copy can't keep serving a stale schema (e.g. a CSV
+                // that was preprocessed to add a new column after the first visit).
                 console.log(`Step 1: Loading CSV data from ${config.csvFile}`);
-                const csvData = await d3.csv(config.csvFile);
+                const csvUrl = config.csvFile + (config.csvFile.includes('?') ? '&' : '?') + 'v=' + Date.now();
+                const csvData = await d3.csv(csvUrl);
+                if (csvData.length > 0) {
+                    console.log(`First CSV row keys: ${Object.keys(csvData[0]).join(', ')}`);
+                    console.log(`First CSV row district value: ${JSON.stringify(csvData[0][config.dataMapping.district])}`);
+                }
                 
                 // Check if aborted after CSV load
                 if (signal && signal.aborted) {
@@ -2783,6 +3055,7 @@
             const statsContent = document.getElementById('statsContent');
             const filteredData = getFilteredData();
             const districtStats = computeDistrictStats(filteredData);
+            currentColorScale = buildColorScale(districtStats);
 
             renderDistrictRankings(filteredData, districtStats);
             updateChoropleth(districtStats);
