@@ -1,12 +1,9 @@
-# Food Establishment Inspection Data
+# Food Establishment Inspection Data, [Mapped](https://xuanx1.github.io/foodSafe/multi-city-inspection-map.html)
 
-[Live preview](https://xuanx1.github.io/foodSafe/multi-city-inspection-map.html)
+An editorial data piece on restaurant health inspections in four US cities — Seattle, New York, Chicago and San Francisco. Public-health inspection records from each city's open data portal are mapped, normalised onto a single 0–100 quality scale, and ranked by district.
 
-![Screenshot 1](images/screenshot-1.jpg)
+<img width="1903" height="917" alt="foodsafe" src="https://github.com/user-attachments/assets/e88d86a9-e9cc-4e93-a5cf-eb3682d7d766" />
 
-An editorial, Pudding/NYT-style data piece on restaurant health inspections in four US cities — Seattle, New York, Chicago and San Francisco. Public-health inspection records from each city's open data portal are mapped, normalised onto a single 0–100 quality scale, and ranked by district.
-
-![Screenshot 2](images/screenshot-2.jpg)
 
 ## What the piece does
 
